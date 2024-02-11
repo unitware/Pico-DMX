@@ -1,6 +1,6 @@
 
 /*
- * Copyright (c) 2021 Jostein Løwer 
+ * Copyright (c) 2021 Jostein Løwer
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -27,18 +27,20 @@ class DmxInput
 {
     uint _pin;
     int32_t _start_channel;
-    int32_t _num_channels;
 
 public:
     /*
     private properties that are declared public so the interrupt handler has access
     */
+    volatile int32_t _num_channels;
     volatile uint8_t *_buf;
     volatile PIO _pio;
     volatile uint _sm;
     volatile uint _dma_chan;
     volatile unsigned long _last_packet_timestamp=0;
+    volatile bool read_header = true;
     void (*_cb)(DmxInput*);
+
     /*
         All different return codes for the DMX class. Only the SUCCESS
         Return code guarantees that the DMX output instance was properly configured
@@ -104,7 +106,7 @@ public:
 
 
     /*
-        De-inits the DMX input instance. Releases PIO resources. 
+        De-inits the DMX input instance. Releases PIO resources.
         The instance can safely be destroyed after this method is called
     */
     void end();

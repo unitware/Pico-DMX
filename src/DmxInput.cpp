@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Jostein Løwer 
+ * Copyright (c) 2021 Jostein Løwer
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -16,16 +16,30 @@
   #include "pico/time.h"
   #include "hardware/clocks.h"
   #include "hardware/irq.h"
+  #include "hardware/dma.h"
 #endif
 
 bool prgm_loaded[] = {false,false};
 volatile uint prgm_offsets[] = {0,0};
+
 /*
 This array tells the interrupt handler which instance has interrupted.
-The interrupt handler has only the ints0 register to go on, so this array needs as many spots as there are DMA channels. 
+The interrupt handler has only the ints0 register to go on, so this array needs as many spots as there are DMA channels.
 */
 #define NUM_DMA_CHANS 12
 volatile DmxInput *active_inputs[NUM_DMA_CHANS] = {nullptr};
+#define RDM_MINIMAL_HEADER_SIZE  3
+
+/* RDM START CODE (Slot 0) */
+#ifndef E120_SC_RDM
+#define E120_SC_RDM 0xCC
+#endif
+
+/* RDM Protocol Data Structure ID's (Slot 1) */
+#ifndef E120_SC_SUB_MESSAGE
+#define E120_SC_SUB_MESSAGE 0x01
+#endif
+
 
 DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_channels, PIO pio, bool inverted)
 {
@@ -33,9 +47,7 @@ DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_cha
 
     if(!prgm_loaded[pio_ind])
     {
-        /*
-        Attempt to load the DMX PIO assembly program into the PIO program memory
-        */
+        // Attempt to load the DMX PIO assembly program into the PIO program memory
         if(!inverted)
         {
             if (!pio_can_add_program(pio, &DmxInput_program))
@@ -56,10 +68,7 @@ DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_cha
         prgm_loaded[pio_ind] = true;
     }
 
-    /*
-    Attempt to claim an unused State Machine into the PIO program memory
-    */
-
+    // Attempt to claim an unused State Machine into the PIO program memory
     int sm = pio_claim_unused_sm(pio, false);
     if (sm == -1)
     {
@@ -141,19 +150,43 @@ void dmxinput_dma_handler()
         {
             dma_hw->ints0 = 1u << i;
             volatile DmxInput *instance = active_inputs[i];
-            dma_channel_set_write_addr(i, instance->_buf, true);
-            pio_sm_exec(instance->_pio, instance->_sm, pio_encode_jmp(prgm_offsets[pio_get_index(instance->_pio)]));
-            pio_sm_clear_fifos(instance->_pio, instance->_sm);
-            #ifdef ARDUINO
-                instance->_last_packet_timestamp = millis();
-            #else
-                instance->_last_packet_timestamp = to_ms_since_boot(get_absolute_time());
-            #endif
 
-            // Trigger the callback if we have one
-            if (instance->_cb != nullptr)
+            if (instance->read_header)
             {
-                (*(instance->_cb))((DmxInput*)instance);
+                gpio_put(4, true);
+                instance->read_header = false;
+                if (   (instance->_buf[0] == E120_SC_RDM)
+                    && (instance->_buf[1] == E120_SC_SUB_MESSAGE))
+                {
+                    dma_channel_set_trans_count(i, instance->_buf[2] - 1, false);
+                    dma_channel_set_write_addr(i, instance->_buf + RDM_MINIMAL_HEADER_SIZE, true);
+                }
+                else
+                {
+                    dma_channel_set_trans_count(i, DMXINPUT_BUFFER_SIZE(_start_channel, instance->_num_channels) - RDM_MINIMAL_HEADER_SIZE, false);
+                    dma_channel_set_write_addr(i, instance->_buf + RDM_MINIMAL_HEADER_SIZE, true);
+                }
+            }
+            else
+            {
+                gpio_put(4, false);
+                instance->read_header = true;
+                dma_channel_set_trans_count(i, RDM_MINIMAL_HEADER_SIZE, false);
+                dma_channel_set_write_addr(i, instance->_buf, true);
+                pio_sm_exec(instance->_pio, instance->_sm, pio_encode_jmp(prgm_offsets[pio_get_index(instance->_pio)]));
+                pio_sm_clear_fifos(instance->_pio, instance->_sm);
+
+                #ifdef ARDUINO
+                  instance->_last_packet_timestamp = millis();
+                #else
+                  instance->_last_packet_timestamp = to_ms_since_boot(get_absolute_time());
+                #endif
+
+                // Trigger the callback if we have one
+                if (instance->_cb != nullptr)
+                {
+                    (*(instance->_cb))((DmxInput*)instance);
+                }
             }
         }
     }
@@ -185,11 +218,11 @@ void DmxInput::read_async(volatile uint8_t *buffer, void (*inputUpdatedCallback)
 
     //channel_config_set_ring(&cfg, true, 5);
     dma_channel_configure(
-        _dma_chan, 
+        _dma_chan,
         &cfg,
         NULL,    // dst
         &_pio->rxf[_sm],  // src
-        DMXINPUT_BUFFER_SIZE(_start_channel, _num_channels),  // transfer count,
+        RDM_MINIMAL_HEADER_SIZE,  // transfer count,
         false
     );
 
@@ -198,6 +231,7 @@ void DmxInput::read_async(volatile uint8_t *buffer, void (*inputUpdatedCallback)
     irq_set_enabled(DMA_IRQ_0, true);
 
     //aaand start!
+    read_header = true;
     dma_channel_set_write_addr(_dma_chan, buffer, true);
     pio_sm_exec(_pio, _sm, pio_encode_jmp(prgm_offsets[pio_get_index(_pio)]));
     pio_sm_clear_fifos(_pio, _sm);
