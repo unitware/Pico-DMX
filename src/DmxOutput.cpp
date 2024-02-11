@@ -1,6 +1,6 @@
 
 /*
- * Copyright (c) 2021 Jostein Løwer 
+ * Copyright (c) 2021 Jostein Løwer
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -18,22 +18,14 @@
 
 DmxOutput::return_code DmxOutput::begin(uint pin, PIO pio)
 {
-    /* 
-    Attempt to load the DMX PIO assembly program 
-    into the PIO program memory
-    */
-
+    // Attempt to load the DMX PIO assembly program into the PIO program memory
     if (!pio_can_add_program(pio, &DmxOutput_program))
     {
         return ERR_INSUFFICIENT_PRGM_MEM;
     }
     uint prgm_offset = pio_add_program(pio, &DmxOutput_program);
 
-    /* 
-    Attempt to claim an unused State Machine 
-    into the PIO program memory
-    */
-
+    // Attempt to claim an unused State Machine into the PIO program memory
     int sm = pio_claim_unused_sm(pio, false);
     if (sm == -1)
     {
@@ -95,7 +87,6 @@ DmxOutput::return_code DmxOutput::begin(uint pin, PIO pio)
 
 void DmxOutput::write(uint8_t *universe, uint length)
 {
-
     // Temporarily disable the PIO state machine
     pio_sm_set_enabled(_pio, _sm, false);
 

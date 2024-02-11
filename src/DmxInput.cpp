@@ -153,7 +153,6 @@ void dmxinput_dma_handler()
 
             if (instance->read_header)
             {
-                gpio_put(4, true);
                 instance->read_header = false;
                 if (   (instance->_buf[0] == E120_SC_RDM)
                     && (instance->_buf[1] == E120_SC_SUB_MESSAGE))
@@ -169,7 +168,6 @@ void dmxinput_dma_handler()
             }
             else
             {
-                gpio_put(4, false);
                 instance->read_header = true;
                 dma_channel_set_trans_count(i, RDM_MINIMAL_HEADER_SIZE, false);
                 dma_channel_set_write_addr(i, instance->_buf, true);

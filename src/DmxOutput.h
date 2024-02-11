@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Jostein Løwer 
+ * Copyright (c) 2021 Jostein Løwer
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -53,24 +53,24 @@ public:
     };
 
     /*
-       Starts a new DMX transmitter instance. 
-       
+       Starts a new DMX transmitter instance.
+
        Param: pin
        Any valid GPIO pin on the RPi Pico
 
        Param: pio
        defaults to pio0. pio0 can run up to 4
        DMX instances. If you really need more, you can
-       run 4 more on pio1  
+       run 4 more on pio1
     */
 
     return_code begin(uint pin, PIO pio = pio0);
 
     /*
         write a DMX universe to the DMX transmitter instance.
-        Returns imediatly after function call and does not block. 
+        Returns imediatly after function call and does not block.
         The status of the DMX transmission can be checked using
-        busy() or you can block until the transmission is done 
+        busy() or you can block until the transmission is done
         using await()
 
         Param: universe
@@ -80,8 +80,8 @@ public:
         DMX data frames, the start code should be 0x00.
 
         Param: length
-        The number of bytes from the DMX frame that should be 
-        transmitted 
+        The number of bytes from the DMX frame that should be
+        transmitted
     */
 
     void write(uint8_t *universe, uint length);
@@ -101,7 +101,7 @@ public:
     // void await();
 
     /*
-        De-inits the DMX transmitter instance. Releases PIO 
+        De-inits the DMX transmitter instance. Releases PIO
         and DMA resources. The instance can safely be destroyed
         after this method is called
     */
