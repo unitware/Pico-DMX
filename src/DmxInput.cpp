@@ -30,28 +30,33 @@ volatile DmxInput *active_inputs[NUM_DMA_CHANS] = {nullptr};
 DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_channels, PIO pio, bool inverted)
 {
     uint pio_ind = pio_get_index(pio);
-    if(!prgm_loaded[pio_ind]) {
-        /* 
+
+    if(!prgm_loaded[pio_ind])
+    {
+        /*
         Attempt to load the DMX PIO assembly program into the PIO program memory
         */
-       if(!inverted) {
-        if (!pio_can_add_program(pio, &DmxInput_program))
+        if(!inverted)
         {
-            return ERR_INSUFFICIENT_PRGM_MEM;
+            if (!pio_can_add_program(pio, &DmxInput_program))
+            {
+                return ERR_INSUFFICIENT_PRGM_MEM;
+            }
+            prgm_offsets[pio_ind] = pio_add_program(pio, &DmxInput_program);
         }
-        prgm_offsets[pio_ind] = pio_add_program(pio, &DmxInput_program);
-       } else {
-        if (!pio_can_add_program(pio, &DmxInputInverted_program))
+        else
         {
-            return ERR_INSUFFICIENT_PRGM_MEM;
+            if (!pio_can_add_program(pio, &DmxInputInverted_program))
+            {
+                return ERR_INSUFFICIENT_PRGM_MEM;
+            }
+            prgm_offsets[pio_ind] = pio_add_program(pio, &DmxInputInverted_program);
         }
-        prgm_offsets[pio_ind] = pio_add_program(pio, &DmxInputInverted_program);
-       }
 
         prgm_loaded[pio_ind] = true;
     }
 
-    /* 
+    /*
     Attempt to claim an unused State Machine into the PIO program memory
     */
 
@@ -68,9 +73,12 @@ DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_cha
 
     // Generate the default PIO state machine config provided by pioasm
     pio_sm_config sm_conf;
-    if(!inverted) {
+    if(!inverted)
+    {
         sm_conf = DmxInput_program_get_default_config(prgm_offsets[pio_ind]);
-    } else {
+    }
+    else
+    {
         sm_conf = DmxInputInverted_program_get_default_config(prgm_offsets[pio_ind]);
     }
     sm_config_set_in_pins(&sm_conf, pin); // for WAIT, IN
@@ -103,7 +111,8 @@ DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_cha
     _dma_chan = dma_claim_unused_channel(true);
 
 
-    if (active_inputs[_dma_chan] != nullptr) {
+    if (active_inputs[_dma_chan] != nullptr)
+    {
         return ERR_NO_SM_AVAILABLE;
     }
     active_inputs[_dma_chan] = this;
@@ -113,41 +122,48 @@ DmxInput::return_code DmxInput::begin(uint pin, uint start_channel, uint num_cha
 
 void DmxInput::read(volatile uint8_t *buffer)
 {
-    if(_buf==nullptr) {
+    if(_buf==nullptr)
+    {
         read_async(buffer);
     }
     unsigned long start = _last_packet_timestamp;
-    while(_last_packet_timestamp == start) {
+    while(_last_packet_timestamp == start)
+    {
         tight_loop_contents();
     }
 }
 
-void dmxinput_dma_handler() {
-    for(int i=0;i<NUM_DMA_CHANS;i++) {
-        if(active_inputs[i]!=nullptr && (dma_hw->ints0 & (1u<<i))) {
+void dmxinput_dma_handler()
+{
+    for(int i=0;i<NUM_DMA_CHANS;i++)
+    {
+        if(active_inputs[i]!=nullptr && (dma_hw->ints0 & (1u<<i)))
+        {
             dma_hw->ints0 = 1u << i;
             volatile DmxInput *instance = active_inputs[i];
             dma_channel_set_write_addr(i, instance->_buf, true);
             pio_sm_exec(instance->_pio, instance->_sm, pio_encode_jmp(prgm_offsets[pio_get_index(instance->_pio)]));
             pio_sm_clear_fifos(instance->_pio, instance->_sm);
-#ifdef ARDUINO
-            instance->_last_packet_timestamp = millis();
-#else
-            instance->_last_packet_timestamp = to_ms_since_boot(get_absolute_time());
-#endif
+            #ifdef ARDUINO
+                instance->_last_packet_timestamp = millis();
+            #else
+                instance->_last_packet_timestamp = to_ms_since_boot(get_absolute_time());
+            #endif
+
             // Trigger the callback if we have one
-            if (instance->_cb != nullptr) {
+            if (instance->_cb != nullptr)
+            {
                 (*(instance->_cb))((DmxInput*)instance);
             }
         }
     }
-    
 }
 
-void DmxInput::read_async(volatile uint8_t *buffer, void (*inputUpdatedCallback)(DmxInput*)) {
-
+void DmxInput::read_async(volatile uint8_t *buffer, void (*inputUpdatedCallback)(DmxInput*))
+{
     _buf = buffer;
-    if (inputUpdatedCallback!=nullptr) {
+    if (inputUpdatedCallback!=nullptr)
+    {
         _cb = inputUpdatedCallback;
     }
 
@@ -185,20 +201,22 @@ void DmxInput::read_async(volatile uint8_t *buffer, void (*inputUpdatedCallback)
     dma_channel_set_write_addr(_dma_chan, buffer, true);
     pio_sm_exec(_pio, _sm, pio_encode_jmp(prgm_offsets[pio_get_index(_pio)]));
     pio_sm_clear_fifos(_pio, _sm);
-#ifdef ARDUINO
-    _last_packet_timestamp = millis();
-#else
-    _last_packet_timestamp = to_ms_since_boot(get_absolute_time());
-#endif
+    #ifdef ARDUINO
+      _last_packet_timestamp = millis();
+    #else
+      _last_packet_timestamp = to_ms_since_boot(get_absolute_time());
+    #endif
 
     pio_sm_set_enabled(_pio, _sm, true);
 }
 
-unsigned long DmxInput::latest_packet_timestamp() {
+unsigned long DmxInput::latest_packet_timestamp()
+{
     return _last_packet_timestamp;
 }
 
-uint DmxInput::pin() {
+uint DmxInput::pin()
+{
     return _pin;
 }
 
@@ -210,16 +228,21 @@ void DmxInput::end()
     // Remove the PIO DMX program from the PIO program memory
     uint pio_id = pio_get_index(_pio);
     bool inuse = false;
-    for(uint i=0;i<NUM_DMA_CHANS;i++) {
-        if(i==_dma_chan) {
+    for(uint i=0;i<NUM_DMA_CHANS;i++)
+    {
+        if(i==_dma_chan)
+        {
             continue;
         }
-        if(pio_id == pio_get_index(active_inputs[i]->_pio)) {
+        if(pio_id == pio_get_index(active_inputs[i]->_pio))
+        {
             inuse = true;
             break;
         }
     }
-    if(!inuse) {
+
+    if(!inuse)
+    {
         prgm_loaded[pio_id] = false;
         pio_remove_program(_pio, &DmxInput_program, prgm_offsets[pio_id]);
         prgm_offsets[pio_id]=0;

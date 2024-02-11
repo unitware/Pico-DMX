@@ -58,15 +58,15 @@ public:
     };
 
     /*
-       Starts a new DMX input instance. 
-       
+       Starts a new DMX input instance.
+
        Param: pin
        Any valid GPIO pin on the Pico
 
        Param: pio
        defaults to pio0. pio0 can run up to 3
        DMX input instances. If you really need more, you can
-       run 3 more on pio1  
+       run 3 more on pio1
     */
 
     return_code begin(uint pin, uint start_channel, uint num_channels, PIO pio = pio0, bool inverted = false);
@@ -76,7 +76,7 @@ public:
         Method call blocks until the selected channels have been received
 
         Param: buffer
-        A pointer to the location where the channels should be received 
+        A pointer to the location where the channels should be received
         The buffer should have a max length of
         513 bytes (1 byte start code + 512 bytes frame). For ordinary
         DMX data frames, the start code should be 0x00.
