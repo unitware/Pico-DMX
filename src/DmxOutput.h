@@ -97,8 +97,7 @@ public:
         the current DMX frame. Returns immediately if no
         frame is currently being transmitted
     */
-
-    // void await();
+    void await();
 
     /*
         De-inits the DMX transmitter instance. Releases PIO
