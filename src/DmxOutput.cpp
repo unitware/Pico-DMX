@@ -85,7 +85,7 @@ DmxOutput::return_code DmxOutput::begin(uint pin, PIO pio)
     return SUCCESS;
 }
 
-void DmxOutput::write(uint8_t *universe, uint length)
+void DmxOutput::write(uint8_t *universe, uint length, bool send_mab)
 {
     // Temporarily disable the PIO state machine
     pio_sm_set_enabled(_pio, _sm, false);
@@ -94,7 +94,7 @@ void DmxOutput::write(uint8_t *universe, uint length)
     pio_sm_restart(_pio, _sm);
 
     // Start the DMX PIO program from the beginning
-    pio_sm_exec(_pio, _sm, pio_encode_jmp(_prgm_offset));
+    pio_sm_exec(_pio, _sm, pio_encode_jmp(_prgm_offset + (send_mab ? 0 : DmxOutput_wrap_target)));
 
     // Restart the PIO state machinge
     pio_sm_set_enabled(_pio, _sm, true);
