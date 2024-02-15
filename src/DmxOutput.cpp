@@ -18,6 +18,38 @@
   #include "pico/time.h"
 #endif
 
+
+#include <stdio.h>
+
+volatile struct {
+    void (*done_cb)(void * arg);
+    void * arg;
+} tx_done_callbacks[2][4];
+
+void dmxoutput_irq_handler()
+{
+    for (uint8_t i=0; i<4; i++)
+    {
+        if (pio_interrupt_get(pio0, i))
+        {
+            pio_interrupt_clear(pio0, i);
+            if (tx_done_callbacks[0][i].done_cb)
+            {
+                tx_done_callbacks[0][i].done_cb(tx_done_callbacks[0][i].arg);
+            }
+        }
+
+        if (pio_interrupt_get(pio1, i))
+        {
+            pio_interrupt_clear(pio1, i);
+            if (tx_done_callbacks[1][i].done_cb)
+            {
+                tx_done_callbacks[1][i].done_cb(tx_done_callbacks[1][i].arg);
+            }
+        }
+    }
+}
+
 DmxOutput::return_code DmxOutput::begin(uint pin, PIO pio)
 {
     // Attempt to load the DMX PIO assembly program into the PIO program memory
@@ -84,26 +116,49 @@ DmxOutput::return_code DmxOutput::begin(uint pin, PIO pio)
     _pin = pin;
     _dma = dma;
 
+    uint pio_irq = (_pio == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0;
+    if (irq_get_exclusive_handler(pio_irq)) {
+        pio_irq++;
+        if (irq_get_exclusive_handler(pio_irq)) {
+            panic("All IRQs are in use");
+        }
+    }
+
+    const uint irq_index = pio_irq - ((_pio == pio0) ? PIO0_IRQ_0 : PIO1_IRQ_0); // Get index of the IRQ
+    irq_add_shared_handler(pio_irq, dmxoutput_irq_handler, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
+
+    irq_set_enabled(pio_irq, true); // Enable the IRQ
+    pio_set_irqn_source_enabled(_pio, irq_index, static_cast<pio_interrupt_source>(pis_interrupt0 + _sm), true); // Set pio to tell us when the FIFO is NOT empty
+
     return SUCCESS;
 }
 
-void DmxOutput::write(uint8_t *universe, uint length, bool send_mab)
+
+void DmxOutput::write(uint8_t *universe, uint length, bool send_mab,
+                void (*done_cb)(void * arg), void * done_cb_arg)
 {
+    uint8_t pio_index = (_pio == pio0) ? 0 : 1;
+    tx_done_callbacks[pio_index][_sm].done_cb = done_cb;
+    tx_done_callbacks[pio_index][_sm].arg     = done_cb_arg;
+
     // Temporarily disable the PIO state machine
     pio_sm_set_enabled(_pio, _sm, false);
 
     // Reset the PIO state machine to a consistent state. Clear the buffers and registers
     pio_sm_restart(_pio, _sm);
 
+    pio_sm_put_blocking(_pio, _sm, length);
+
     // Start the DMX PIO program from the beginning
-    pio_sm_exec(_pio, _sm, pio_encode_jmp(_prgm_offset + (send_mab ? 0 : DmxOutput_wrap_target)));
+    pio_sm_exec(_pio, _sm, pio_encode_jmp(_prgm_offset + (send_mab ? 0 : DmxOutput_offset_start_tx)));
 
     // Restart the PIO state machinge
     pio_sm_set_enabled(_pio, _sm, true);
 
     // Start the DMA transfer
-    dma_channel_transfer_from_buffer_now(_dma, universe, length);
+    dma_channel_transfer_from_buffer_now(_dma, universe, length+1);
 }
+
 
 bool DmxOutput::busy()
 {
@@ -113,24 +168,24 @@ bool DmxOutput::busy()
     return !pio_sm_is_tx_fifo_empty(_pio, _sm);
 }
 
-bool DmxOutput::await(uint timeout_us)
-{
-    uint64_t end_time_us = 0xffffffffffffffff;
-    if (timeout_us)
-    {
-        end_time_us = time_us_64() + timeout_us;
-    }
 
-    while (busy())
-    {
-        if (end_time_us < time_us_64())
-        {
-            return false;
-        }
-    }
-    sleep_us(60); // time for last slot to be sent
-    return true;
-}
+// bool DmxOutput::await(uint timeout_us)
+// {
+//     uint64_t end_time_us = 0xffffffffffffffff;
+//     if (timeout_us)
+//     {
+//         end_time_us = time_us_64() + timeout_us + 500;
+//     }
+
+//     while (!pio_interrupt_get(_pio, 0) || !pio_sm_is_tx_fifo_empty(_pio, _sm))
+//     {
+//         if (end_time_us < time_us_64())
+//         {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
 
 void DmxOutput::end()
 {

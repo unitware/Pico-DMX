@@ -84,7 +84,9 @@ public:
         transmitted
     */
 
-    void write(uint8_t *universe, uint length, bool send_mab=true);
+    void write(uint8_t *universe, uint length,
+                bool send_mab=true,
+                void (*done_cb)(void * arg)=nullptr, void * done_cb_arg=nullptr);
 
     /*
         Checks whether the DMX transmitter is busy sending
@@ -102,7 +104,7 @@ public:
         \returns true if package was sent (within timeout if timeout was set)
         \returns false if timeout_us > 0 and transmission was not done after timeout
     */
-    bool await(uint timeout_us=0);
+    // bool await(uint timeout_us=0);
 
     /*
         De-inits the DMX transmitter instance. Releases PIO
