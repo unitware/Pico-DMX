@@ -13,7 +13,9 @@
   #include <irq.h>
 #else
   #include "hardware/clocks.h"
+  #include "hardware/timer.h"
   #include "hardware/irq.h"
+  #include "pico/time.h"
 #endif
 
 DmxOutput::return_code DmxOutput::begin(uint pin, PIO pio)
@@ -111,13 +113,23 @@ bool DmxOutput::busy()
     return !pio_sm_is_tx_fifo_empty(_pio, _sm);
 }
 
-void DmxOutput::await()
+bool DmxOutput::await(uint timeout_us)
 {
-    dma_channel_wait_for_finish_blocking(_dma);
-
-    while (!pio_sm_is_tx_fifo_empty(_pio, _sm))
+    uint64_t end_time_us = 0xffffffffffffffff;
+    if (timeout_us)
     {
+        end_time_us = time_us_64() + timeout_us;
     }
+
+    while (busy())
+    {
+        if (end_time_us < time_us_64())
+        {
+            return false;
+        }
+    }
+    sleep_us(60); // time for last slot to be sent
+    return true;
 }
 
 void DmxOutput::end()

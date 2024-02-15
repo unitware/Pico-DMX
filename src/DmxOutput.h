@@ -96,8 +96,13 @@ public:
         Wait for the DMX transmitter to finish transmitting
         the current DMX frame. Returns immediately if no
         frame is currently being transmitted
+
+        \param timeout_us  if set to 0 (default) then function is blocking
+
+        \returns true if package was sent (within timeout if timeout was set)
+        \returns false if timeout_us > 0 and transmission was not done after timeout
     */
-    void await();
+    bool await(uint timeout_us=0);
 
     /*
         De-inits the DMX transmitter instance. Releases PIO
