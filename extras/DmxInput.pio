@@ -1,6 +1,6 @@
 ; Author: Jostein Løwer, github: jostlowe
 ; SPDX-License-Identifier: BSD-3-Clause
-; 
+;
 ; PIO program for inputting the DMX lighting protocol.
 ; (Almost) compliant with ANSI E1.11-2008 (R2018)
 ; The program assumes a PIO clock frequency of exactly 1MHz
@@ -14,7 +14,9 @@ break_reset:
 break_loop:                           ; Break loop lasts for 8us. The entire break must be minimum 30*3us = 90us
     jmp pin break_reset               ; Go back to start if pin goes high during the break
     jmp x-- break_loop   [1]          ; Decrease the counter and go back to break loop if x>0 so that the break is not done
-    wait 1 pin 0                      ; Stall until line goes high for the Mark-After-Break (MAB) 
+
+public start_in_break:
+    wait 1 pin 0                      ; Stall until line goes high for the Mark-After-Break (MAB)
 
 .wrap_target
     wait 0 pin 0                      ; Stall until start bit is asserted
@@ -28,3 +30,16 @@ bitloop:
     push                              ; Should probably do error checking on the stop bits some time in the future....
 
 .wrap
+
+
+
+.program DmxBreakDetect
+bd_reset:
+    set x, 27
+
+bd_loop:
+    jmp pin bd_reset
+    jmp x-- bd_loop
+    irq 0 rel           ; break detected
+    wait 1 pin 0        ; wait for break to end
+    jmp bd_reset

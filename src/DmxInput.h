@@ -32,14 +32,20 @@ public:
     /*
     private properties that are declared public so the interrupt handler has access
     */
-    volatile int32_t _num_channels;
-    volatile uint8_t *_buf;
-    volatile PIO _pio;
-    volatile uint _sm;
-    volatile uint _dma_chan;
-    volatile unsigned long _last_packet_timestamp=0;
-    volatile bool read_header = true;
+    /* volatile */ int32_t _num_channels;
+    /* volatile */ uint8_t *_buf;
+    /* volatile */ uint8_t _rx_buf[513];
+    /* volatile */ PIO _pio;
+    /* volatile */ uint _sm;
+    /* volatile */ uint _sm_bd;
+    /* volatile */ uint _dma_chan;
+    /* volatile */ unsigned long _last_packet_timestamp=0;
+    /* volatile */ bool read_header = true;
+    bool data_is_reported = false;
+    bool rdp_frame = false;
+
     void (*_cb)(DmxInput*);
+    void call_cb_and_restart_rx(bool skip_brk);
 
     /*
         All different return codes for the DMX class. Only the SUCCESS
@@ -83,7 +89,7 @@ public:
         513 bytes (1 byte start code + 512 bytes frame). For ordinary
         DMX data frames, the start code should be 0x00.
     */
-    void read(volatile uint8_t *buffer);
+    void read(uint8_t *buffer);
 
     /*
         Start async read process. This should only be called once.
@@ -91,7 +97,9 @@ public:
         If you want to be notified whenever a new DMX frame has been received,
         provide a callback function that will be called without arguments.
     */
-    void read_async(volatile uint8_t *buffer, void (*inputUpdatedCallback)(DmxInput* instance) = nullptr);
+    void read_async(uint8_t *buffer, void (*inputUpdatedCallback)(DmxInput* instance) = nullptr);
+
+    void stop_rx();
 
     /*
         Get the timestamp (like millis()) from the moment the latest dmx packet was received.
@@ -110,6 +118,8 @@ public:
         The instance can safely be destroyed after this method is called
     */
     void end();
+
+
 };
 
 #endif

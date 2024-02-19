@@ -15,19 +15,21 @@
 #define DmxInput_wrap_target 4
 #define DmxInput_wrap 10
 
+#define DmxInput_offset_start_in_break 3u
+
 static const uint16_t DmxInput_program_instructions[] = {
-    0xe03d, //  0: set    x, 29                      
-    0x00c0, //  1: jmp    pin, 0                     
-    0x0141, //  2: jmp    x--, 1                 [1] 
-    0x20a0, //  3: wait   1 pin, 0                   
+    0xe03d, //  0: set    x, 29
+    0x00c0, //  1: jmp    pin, 0
+    0x0141, //  2: jmp    x--, 1                 [1]
+    0x20a0, //  3: wait   1 pin, 0
             //     .wrap_target
-    0x2020, //  4: wait   0 pin, 0                   
-    0xe427, //  5: set    x, 7                   [4] 
-    0x4001, //  6: in     pins, 1                    
-    0x0246, //  7: jmp    x--, 6                 [2] 
-    0x20a0, //  8: wait   1 pin, 0                   
-    0x4078, //  9: in     null, 24                   
-    0x8020, // 10: push   block                      
+    0x2020, //  4: wait   0 pin, 0
+    0xe427, //  5: set    x, 7                   [4]
+    0x4001, //  6: in     pins, 1
+    0x0246, //  7: jmp    x--, 6                 [2]
+    0x20a0, //  8: wait   1 pin, 0
+    0x4078, //  9: in     null, 24
+    0x8020, // 10: push   block
             //     .wrap
 };
 
@@ -41,6 +43,38 @@ static const struct pio_program DmxInput_program = {
 static inline pio_sm_config DmxInput_program_get_default_config(uint offset) {
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, offset + DmxInput_wrap_target, offset + DmxInput_wrap);
+    return c;
+}
+#endif
+
+// -------------- //
+// DmxBreakDetect //
+// -------------- //
+
+#define DmxBreakDetect_wrap_target 0
+#define DmxBreakDetect_wrap 5
+
+static const uint16_t DmxBreakDetect_program_instructions[] = {
+            //     .wrap_target
+    0xe03b, //  0: set    x, 27
+    0x00c0, //  1: jmp    pin, 0
+    0x0041, //  2: jmp    x--, 1
+    0xc010, //  3: irq    nowait 0 rel
+    0x20a0, //  4: wait   1 pin, 0
+    0x0000, //  5: jmp    0
+            //     .wrap
+};
+
+#if !PICO_NO_HARDWARE
+static const struct pio_program DmxBreakDetect_program = {
+    .instructions = DmxBreakDetect_program_instructions,
+    .length = 6,
+    .origin = -1,
+};
+
+static inline pio_sm_config DmxBreakDetect_program_get_default_config(uint offset) {
+    pio_sm_config c = pio_get_default_sm_config();
+    sm_config_set_wrap(&c, offset + DmxBreakDetect_wrap_target, offset + DmxBreakDetect_wrap);
     return c;
 }
 #endif

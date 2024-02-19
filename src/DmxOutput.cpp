@@ -32,18 +32,18 @@ void dmxoutput_irq_handler()
     {
         if (pio_interrupt_get(pio0, i))
         {
-            pio_interrupt_clear(pio0, i);
             if (tx_done_callbacks[0][i].done_cb)
             {
+                pio_interrupt_clear(pio0, i);
                 tx_done_callbacks[0][i].done_cb(tx_done_callbacks[0][i].arg);
             }
         }
 
         if (pio_interrupt_get(pio1, i))
         {
-            pio_interrupt_clear(pio1, i);
             if (tx_done_callbacks[1][i].done_cb)
             {
+                pio_interrupt_clear(pio1, i);
                 tx_done_callbacks[1][i].done_cb(tx_done_callbacks[1][i].arg);
             }
         }
